@@ -193,20 +193,14 @@ const plugin: Plugin = async (ctx) => {
               return `Error creating workspace: ${addResult.error}`
             }
 
-            try {
-              (globalThis as any).process.chdir(workspacePath)
-            } catch (e: any) {
-              return `Error moving to workspace: ${e.message || String(e)}`
-            }
-
-            const describeResult = await jj.describe($, args.description)
+            const describeResult = await jj.describe($, args.description, workspacePath)
             if (!describeResult.success) {
               return `Error describing workspace change: ${describeResult.error}`
             }
-            const changeId = await jj.getCurrentChangeId($)
+            const changeId = await jj.getCurrentChangeId($, workspacePath)
 
             const bookmarkName = args.bookmark || workspaceSlug
-            const bookmarkResult = await jj.bookmarkSet($, bookmarkName)
+            const bookmarkResult = await jj.bookmarkSet($, bookmarkName, workspacePath)
 
             setState(context.sessionID, {
               gateUnlocked: true,
@@ -265,14 +259,16 @@ const plugin: Plugin = async (ctx) => {
         description: "Show current JJ change status, gate state, and diff summary",
         args: {},
         async execute(args, context) {
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
           const isRepo = await jj.isJJRepo($)
-          const changeId = await jj.getCurrentChangeId($)
-          const description = await jj.getCurrentDescription($)
-          const hasModifications = await jj.hasUncommittedChanges($)
-          const diffSummary = await jj.getDiffSummary($)
-          const status = await jj.getStatus($)
-          const workspaceName = await jj.getWorkspaceName($)
-          const bookmark = await jj.getBookmarkForChange($)
+          const changeId = await jj.getCurrentChangeId($, cwd)
+          const description = await jj.getCurrentDescription($, cwd)
+          const hasModifications = await jj.hasUncommittedChanges($, cwd)
+          const diffSummary = await jj.getDiffSummary($, cwd)
+          const status = await jj.getStatus($, cwd)
+          const workspaceName = await jj.getWorkspaceName($, cwd)
+          const bookmark = await jj.getBookmarkForChange($, '@', cwd)
 
           const gateUnlocked = isRepo && (description.length > 0 || hasModifications)
 
@@ -310,17 +306,19 @@ const plugin: Plugin = async (ctx) => {
           confirm: tool.schema.boolean().optional().describe("Set to true ONLY after receiving explicit user permission to push"),
         },
         async execute(args, context) {
-          const currentDesc = await jj.getCurrentDescription($)
-          const hasModifications = await jj.hasUncommittedChanges($)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const currentDesc = await jj.getCurrentDescription($, cwd)
+          const hasModifications = await jj.hasUncommittedChanges($, cwd)
           
           if (currentDesc.length === 0 && !hasModifications) {
             return messages.GATE_NOT_UNLOCKED
           }
 
-          const actualWorkspace = await jj.getWorkspaceName($)
-          const actualWorkspacePath = await jj.getWorkspaceRoot($)
+          const actualWorkspace = await jj.getWorkspaceName($, cwd)
+          const actualWorkspacePath = await jj.getWorkspaceRoot($, cwd)
           const isNonDefaultWorkspace = actualWorkspace !== 'default' && actualWorkspace !== ''
-          const diffFiles = await jj.getDiffFiles($)
+          const diffFiles = await jj.getDiffFiles($, cwd)
           
           if (diffFiles.length === 0) {
             if (isNonDefaultWorkspace) {
@@ -328,13 +326,10 @@ const plugin: Plugin = async (ctx) => {
                 return messages.WORKSPACE_EMPTY_CHANGES(actualWorkspace)
               }
               const repoRoot = actualWorkspacePath.replace(/\/.workspaces\/[^/]+$/, '')
-              await jj.workspaceForget($, actualWorkspace)
-              if (repoRoot) {
-                try { (globalThis as any).process.chdir(repoRoot) } catch {}
-              }
+              await jj.workspaceForget($, actualWorkspace, repoRoot)
               try { await $`rm -rf ${actualWorkspacePath}` } catch {}
-              await jj.gitFetch($)
-              await jj.newFromMain($)
+              await jj.gitFetch($, repoRoot)
+              await jj.newFromMain($, repoRoot)
               setState(context.sessionID, {
                 gateUnlocked: false,
                 changeId: null,
@@ -349,8 +344,8 @@ const plugin: Plugin = async (ctx) => {
             return messages.PUSH_NO_CHANGES
           }
 
-          const description = await jj.getCurrentDescription($)
-          const diffSummary = await jj.getDiffSummary($)
+          const description = await jj.getCurrentDescription($, cwd)
+          const diffSummary = await jj.getDiffSummary($, cwd)
 
           if (!args.confirm) {
             let confirmMsg = messages.PUSH_CONFIRMATION(description, diffFiles, diffSummary)
@@ -366,25 +361,22 @@ const plugin: Plugin = async (ctx) => {
           }
 
           const bookmark = args.bookmark || 'main'
-          const bookmarkResult = await jj.bookmarkMove($, bookmark)
+          const bookmarkResult = await jj.bookmarkMove($, bookmark, cwd)
           if (!bookmarkResult.success) {
             return `Error moving bookmark '${bookmark}': ${bookmarkResult.error}`
           }
 
-          const pushResult = await jj.gitPush($, bookmark)
+          const pushResult = await jj.gitPush($, bookmark, cwd)
           if (!pushResult.success) {
             return `Error pushing: ${pushResult.error}`
           }
 
           if (isNonDefaultWorkspace) {
             const repoRoot = actualWorkspacePath.replace(/\/.workspaces\/[^/]+$/, '')
-            await jj.workspaceForget($, actualWorkspace)
-            if (repoRoot) {
-              try { (globalThis as any).process.chdir(repoRoot) } catch {}
-            }
+            await jj.workspaceForget($, actualWorkspace, repoRoot)
             try { await $`rm -rf ${actualWorkspacePath}` } catch {}
-            await jj.gitFetch($)
-            await jj.newFromMain($)
+            await jj.gitFetch($, repoRoot)
+            await jj.newFromMain($, repoRoot)
             setState(context.sessionID, {
               gateUnlocked: false,
               changeId: null,
@@ -430,7 +422,9 @@ const plugin: Plugin = async (ctx) => {
         description: "Undo the last JJ operation. Safe recovery from mistakes.",
         args: {},
         async execute(args, context) {
-          const result = await jj.undo($)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const result = await jj.undo($, cwd)
           if (!result.success) {
             return `Error: ${result.error}`
           }
@@ -449,7 +443,9 @@ const plugin: Plugin = async (ctx) => {
             return validation.message!
           }
 
-          const result = await jj.describe($, args.message)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const result = await jj.describe($, args.message, cwd)
           if (!result.success) {
             return `Error: ${result.error}`
           }
@@ -462,33 +458,41 @@ const plugin: Plugin = async (ctx) => {
         description: "Abandon the current JJ change and reset the gate. Use to start over.",
         args: {},
         async execute(args, context) {
-          const currentDesc = await jj.getCurrentDescription($)
-          const hasModifications = await jj.hasUncommittedChanges($)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const currentDesc = await jj.getCurrentDescription($, cwd)
+          const hasModifications = await jj.hasUncommittedChanges($, cwd)
           
           if (currentDesc.length === 0 && !hasModifications) {
             return "No active change to abandon."
           }
 
-          const result = await jj.abandon($)
+          const result = await jj.abandon($, cwd)
           if (!result.success) {
             return `Error: ${result.error}`
           }
 
-          const workspaceName = await jj.getWorkspaceName($)
-          const workspacePath = await jj.getWorkspaceRoot($)
+          const workspaceName = await jj.getWorkspaceName($, cwd)
+          const workspacePath = await jj.getWorkspaceRoot($, cwd)
           const isNonDefaultWorkspace = workspaceName !== 'default' && workspaceName !== ''
 
           if (isNonDefaultWorkspace) {
             const repoRoot = workspacePath.replace(/\/.workspaces\/[^/]+$/, '')
-            await jj.workspaceForget($, workspaceName)
-            if (repoRoot) {
-              try { (globalThis as any).process.chdir(repoRoot) } catch {}
-            }
+            await jj.workspaceForget($, workspaceName, repoRoot)
             if (workspacePath) {
               try { await $`rm -rf ${workspacePath}` } catch {}
             }
-            await jj.gitFetch($)
-            await jj.newFromMain($)
+            await jj.gitFetch($, repoRoot)
+            await jj.newFromMain($, repoRoot)
+            setState(context.sessionID, {
+              gateUnlocked: false,
+              changeId: null,
+              changeDescription: '',
+              modifiedFiles: [],
+              bookmark: null,
+              workspace: 'default',
+              workspacePath: repoRoot,
+            })
             return `Change abandoned and workspace \`${workspaceName}\` cleaned up. Gate is now locked. Call \`jj()\` to start a new change.`
           }
 
@@ -507,13 +511,15 @@ const plugin: Plugin = async (ctx) => {
             return validation.message!
           }
 
-          const fetchResult = await jj.gitFetch($)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const fetchResult = await jj.gitFetch($, cwd)
           let warning = ''
           if (!fetchResult.success) {
             warning = `Note: git fetch skipped (${fetchResult.error})\n\n`
           }
 
-          const currentRoot = await jj.getWorkspaceRoot($)
+          const currentRoot = await jj.getWorkspaceRoot($, cwd)
           const workspaceSlug = slugify(args.description)
           const workspaceName = workspaceSlug
           const workspacesDir = `${currentRoot}/.workspaces`
@@ -536,7 +542,9 @@ const plugin: Plugin = async (ctx) => {
         description: "List all JJ workspaces with their status and changes.",
         args: {},
         async execute(args, context) {
-          const listOutput = await jj.workspaceList($)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const listOutput = await jj.workspaceList($, cwd)
           if (!listOutput) {
             return "No workspaces found."
           }
@@ -568,8 +576,10 @@ const plugin: Plugin = async (ctx) => {
           confirm: tool.schema.boolean().optional().describe("Set to true to execute cleanup after reviewing preview"),
         },
         async execute(args, context) {
-          const emptyCommits = await jj.getEmptyCommits($)
-          const staleWorkspaces = await jj.getStaleWorkspaces($)
+          const state = getState(context.sessionID)
+          const cwd = state?.workspacePath || undefined
+          const emptyCommits = await jj.getEmptyCommits($, cwd)
+          const staleWorkspaces = await jj.getStaleWorkspaces($, cwd)
 
           if (emptyCommits.length === 0 && staleWorkspaces.length === 0) {
             return messages.CLEANUP_NOTHING_TO_DO
@@ -584,7 +594,7 @@ const plugin: Plugin = async (ctx) => {
 
           if (emptyCommits.length > 0) {
             const changeIds = emptyCommits.map(c => c.changeId)
-            const result = await jj.abandonCommits($, changeIds)
+            const result = await jj.abandonCommits($, changeIds, cwd)
             if (result.success) {
               totalAbandoned = result.abandoned
               allDeletedBookmarks = result.deletedBookmarks
@@ -593,7 +603,7 @@ const plugin: Plugin = async (ctx) => {
 
           let workspacesRemoved = 0
           for (const workspace of staleWorkspaces) {
-            const result = await jj.workspaceForget($, workspace.name)
+            const result = await jj.workspaceForget($, workspace.name, cwd)
             if (result.success) {
               workspacesRemoved++
             }
