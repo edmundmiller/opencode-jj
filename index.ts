@@ -186,17 +186,18 @@ const plugin: Plugin = async (ctx) => {
               return `Error moving to workspace: ${e.message || String(e)}`
             }
 
-            const newResult = await jj.newChangeFromCurrent($, args.description)
-            if (!newResult.success) {
-              return `Error creating change in workspace: ${newResult.error}`
+            const describeResult = await jj.describe($, args.description)
+            if (!describeResult.success) {
+              return `Error describing workspace change: ${describeResult.error}`
             }
+            const changeId = await jj.getCurrentChangeId($)
 
             const bookmarkName = args.bookmark || workspaceSlug
             const bookmarkResult = await jj.bookmarkSet($, bookmarkName)
 
             setState(context.sessionID, {
               gateUnlocked: true,
-              changeId: newResult.changeId || null,
+              changeId: changeId || null,
               changeDescription: args.description,
               isJJRepo: true,
               workspace: workspaceName,
@@ -205,7 +206,7 @@ const plugin: Plugin = async (ctx) => {
             })
 
             return warning + gitignoreNote + messages.JJ_WORKSPACE_REDIRECT(
-              newResult.changeId || 'unknown',
+              changeId || 'unknown',
               args.description,
               workspaceName,
               workspacePath
