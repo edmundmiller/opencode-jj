@@ -234,6 +234,13 @@ const plugin: Plugin = async (ctx) => {
             return `Error pushing: ${pushResult.error}`
           }
 
+          setState(context.sessionID, {
+            gateUnlocked: false,
+            changeId: null,
+            changeDescription: '',
+            modifiedFiles: [],
+          })
+
           return warning + messages.PUSH_SUCCESS(description, bookmark)
         },
       }),

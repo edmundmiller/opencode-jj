@@ -72,6 +72,8 @@ export const PUSH_SUCCESS = (description: string, bookmark: string = 'main'): st
 **Pushed successfully**
 
 Change "${description.trim()}" has been pushed to **${bookmark}**.
+
+**Gate locked.** To continue working, call \`jj("next task description")\` to create a new checkpoint.
 `
 
 export const PUSH_NO_CHANGES = `
