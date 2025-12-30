@@ -38,29 +38,34 @@ function validateDescription(description: string): { valid: boolean; message?: s
   return { valid: true }
 }
 
-async function silentCleanup($: any, cwd?: string): Promise<{ cleaned: number }> {
+interface CleanupResult {
+  cleaned: number
+  activeWorkspaces: string[]
+}
+
+async function silentCleanup($: any, cwd?: string): Promise<CleanupResult> {
+  const result: CleanupResult = { cleaned: 0, activeWorkspaces: [] }
   try {
-    const [emptyCommits, staleWorkspaces] = await Promise.all([
+    const [emptyCommits, workspaceAnalysis] = await Promise.all([
       jj.getEmptyCommits($, cwd),
-      jj.getStaleWorkspaces($, cwd),
+      jj.analyzeWorkspaces($, cwd),
     ])
-    
-    let cleaned = 0
     
     if (emptyCommits.length > 0) {
       const changeIds = emptyCommits.map(c => c.changeId)
-      const result = await jj.abandonCommits($, changeIds, cwd)
-      if (result.success) cleaned += result.abandoned
+      const abandonResult = await jj.abandonCommits($, changeIds, cwd)
+      if (abandonResult.success) result.cleaned += abandonResult.abandoned
     }
     
-    for (const workspace of staleWorkspaces) {
-      const result = await jj.workspaceForget($, workspace.name, cwd)
-      if (result.success) cleaned++
+    for (const workspace of workspaceAnalysis.stale) {
+      const forgetResult = await jj.workspaceForget($, workspace.name, cwd)
+      if (forgetResult.success) result.cleaned++
     }
     
-    return { cleaned }
+    result.activeWorkspaces = workspaceAnalysis.active.map(w => w.name)
+    return result
   } catch {
-    return { cleaned: 0 }
+    return result
   }
 }
 
@@ -422,8 +427,12 @@ const plugin: Plugin = async (ctx) => {
               workspace: 'default',
               workspacePath: repoRoot,
             })
-            await silentCleanup($, repoRoot)
-            return warning + messages.PUSH_SUCCESS_WITH_CLEANUP(bookmark, actualWorkspace)
+            const cleanup = await silentCleanup($, repoRoot)
+            let result = warning + messages.PUSH_SUCCESS_WITH_CLEANUP(bookmark, actualWorkspace)
+            if (cleanup.activeWorkspaces.length > 0) {
+              result += `\n\n**Other workspaces**: ${cleanup.activeWorkspaces.map(w => `\`${w}\``).join(', ')} (use \`jj_cleanup()\` to remove if no longer needed)`
+            }
+            return result
           }
 
           setState(context.sessionID, {
@@ -433,8 +442,12 @@ const plugin: Plugin = async (ctx) => {
             modifiedFiles: [],
             bookmark: null,
           })
-          await silentCleanup($)
-          return warning + messages.PUSH_SUCCESS(currentDesc, bookmark)
+          const cleanup = await silentCleanup($)
+          let result = warning + messages.PUSH_SUCCESS(currentDesc, bookmark)
+          if (cleanup.activeWorkspaces.length > 0) {
+            result += `\n\n**Other workspaces**: ${cleanup.activeWorkspaces.map(w => `\`${w}\``).join(', ')} (use \`jj_cleanup()\` to remove if no longer needed)`
+          }
+          return result
         },
       }),
 

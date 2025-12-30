@@ -320,16 +320,17 @@ export interface StaleWorkspace {
   reason: string
 }
 
-/**
- * Finds workspaces that are stale: already merged to main or empty.
- * JJ workspace list format: "workspace-name: changeId description"
- */
-export async function getStaleWorkspaces($: Shell, cwd?: string): Promise<StaleWorkspace[]> {
+export interface WorkspaceAnalysis {
+  stale: StaleWorkspace[]
+  active: StaleWorkspace[]
+}
+
+export async function analyzeWorkspaces($: Shell, cwd?: string): Promise<WorkspaceAnalysis> {
+  const result: WorkspaceAnalysis = { stale: [], active: [] }
   try {
     const s = shell($, cwd)
     const listResult = await s`jj workspace list 2>/dev/null`.text()
     const lines = listResult.trim().split('\n')
-    const stale: StaleWorkspace[] = []
     
     for (const line of lines) {
       const match = line.match(/^(\S+):\s+(\S+)\s*(.*)$/)
@@ -341,27 +342,35 @@ export async function getStaleWorkspaces($: Shell, cwd?: string): Promise<StaleW
       if (rest.includes('@')) continue
       
       const isEmpty = rest.includes('(empty)')
+      const hasNoDescription = rest.includes('(no description set)')
       
       try {
         const output = await s`jj log -r '${changeId} & ::main' --no-graph -T 'change_id' 2>/dev/null`.text()
         const isMerged = output.trim().length > 0
         
         if (isMerged) {
-          stale.push({ name, changeId, reason: 'already merged to main' })
+          result.stale.push({ name, changeId, reason: 'already merged to main' })
+        } else if (isEmpty && hasNoDescription) {
+          result.stale.push({ name, changeId, reason: 'empty workspace' })
         } else if (isEmpty) {
-          stale.push({ name, changeId, reason: 'empty workspace' })
+          result.active.push({ name, changeId, reason: 'has description but no changes' })
         }
       } catch {
-        if (isEmpty) {
-          stale.push({ name, changeId, reason: 'empty workspace' })
+        if (isEmpty && hasNoDescription) {
+          result.stale.push({ name, changeId, reason: 'empty workspace' })
         }
       }
     }
     
-    return stale
+    return result
   } catch {
-    return []
+    return result
   }
+}
+
+export async function getStaleWorkspaces($: Shell, cwd?: string): Promise<StaleWorkspace[]> {
+  const analysis = await analyzeWorkspaces($, cwd)
+  return analysis.stale
 }
 
 /**
