@@ -466,6 +466,30 @@ const plugin: Plugin = async (ctx) => {
             return `Error: ${result.error}`
           }
 
+          const isNonDefaultWorkspace = state.workspace !== 'default' && state.workspace !== ''
+
+          if (isNonDefaultWorkspace) {
+            const repoRoot = state.workspacePath?.replace(/\/.workspaces\/[^/]+$/, '') || ''
+            await jj.workspaceForget($, state.workspace!)
+            if (repoRoot) {
+              try { (globalThis as any).process.chdir(repoRoot) } catch {}
+            }
+            if (state.workspacePath) {
+              try { await $`rm -rf ${state.workspacePath}` } catch {}
+            }
+            await jj.gitFetch($)
+            setState(context.sessionID, {
+              gateUnlocked: false,
+              changeId: null,
+              changeDescription: '',
+              modifiedFiles: [],
+              bookmark: null,
+              workspace: 'default',
+              workspacePath: repoRoot,
+            })
+            return `Change abandoned and workspace \`${state.workspace}\` cleaned up. Gate is now locked. Call \`jj()\` to start a new change.`
+          }
+
           setState(context.sessionID, {
             gateUnlocked: false,
             changeId: null,
