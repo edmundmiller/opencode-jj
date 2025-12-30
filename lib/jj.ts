@@ -6,7 +6,7 @@ export function isValidEmail(email: string): boolean {
 
 export async function isJJRepo($: Shell): Promise<boolean> {
   try {
-    const result = await $.nothrow()`jj root`
+    const result = await $.nothrow()`jj root 2>/dev/null`
     return result.exitCode === 0
   } catch {
     return false
@@ -15,7 +15,7 @@ export async function isJJRepo($: Shell): Promise<boolean> {
 
 export async function getCurrentChangeId($: Shell): Promise<string | null> {
   try {
-    const result = await $`jj log -r @ --no-graph -T 'change_id.short()'`.text()
+    const result = await $`jj log -r @ --no-graph -T 'change_id.short()' 2>/dev/null`.text()
     return result.trim() || null
   } catch {
     return null
@@ -24,7 +24,7 @@ export async function getCurrentChangeId($: Shell): Promise<string | null> {
 
 export async function getCurrentDescription($: Shell): Promise<string> {
   try {
-    const result = await $`jj log -r @ --no-graph -T 'description'`.text()
+    const result = await $`jj log -r @ --no-graph -T 'description' 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -33,7 +33,7 @@ export async function getCurrentDescription($: Shell): Promise<string> {
 
 export async function getDiffSummary($: Shell): Promise<string> {
   try {
-    const result = await $`jj diff --stat`.text()
+    const result = await $`jj diff --stat 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -42,7 +42,7 @@ export async function getDiffSummary($: Shell): Promise<string> {
 
 export async function hasUncommittedChanges($: Shell): Promise<boolean> {
   try {
-    const result = await $`jj diff --stat`.text()
+    const result = await $`jj diff --stat 2>/dev/null`.text()
     return result.trim().length > 0
   } catch {
     return false
@@ -51,7 +51,7 @@ export async function hasUncommittedChanges($: Shell): Promise<boolean> {
 
 export async function getDiffFiles($: Shell): Promise<string[]> {
   try {
-    const result = await $`jj diff --name-only`.text()
+    const result = await $`jj diff --name-only 2>/dev/null`.text()
     return result.trim().split('\n').filter((f: string) => f.length > 0)
   } catch {
     return []
@@ -60,7 +60,7 @@ export async function getDiffFiles($: Shell): Promise<string[]> {
 
 export async function getStatus($: Shell): Promise<string> {
   try {
-    const result = await $`jj st`.text()
+    const result = await $`jj st 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -69,7 +69,7 @@ export async function getStatus($: Shell): Promise<string> {
 
 export async function gitFetch($: Shell): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj git fetch`
+    await $`jj git fetch >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -78,11 +78,11 @@ export async function gitFetch($: Shell): Promise<{ success: boolean; error?: st
 
 export async function newFromMain($: Shell): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj new main@origin`
+    await $`jj new main@origin >/dev/null 2>&1`
     return { success: true }
   } catch {
     try {
-      await $`jj new main`
+      await $`jj new main >/dev/null 2>&1`
       return { success: true }
     } catch (e: any) {
       return { success: false, error: e.message || String(e) }
@@ -93,13 +93,13 @@ export async function newFromMain($: Shell): Promise<{ success: boolean; error?:
 export async function newChange($: Shell, description: string): Promise<{ success: boolean; changeId?: string; error?: string }> {
   // Try main@origin first (remote tracking branch)
   try {
-    await $`jj new main@origin -m ${description}`
+    await $`jj new main@origin -m ${description} >/dev/null 2>&1`
     const changeId = await getCurrentChangeId($)
     return { success: true, changeId: changeId || undefined }
   } catch {
     // Fallback to local main if remote doesn't exist
     try {
-      await $`jj new main -m ${description}`
+      await $`jj new main -m ${description} >/dev/null 2>&1`
       const changeId = await getCurrentChangeId($)
       return { success: true, changeId: changeId || undefined }
     } catch (e: any) {
@@ -114,7 +114,7 @@ export async function newChange($: Shell, description: string): Promise<{ succes
 
 export async function describe($: Shell, message: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj describe -m ${message}`
+    await $`jj describe -m ${message} >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -123,7 +123,7 @@ export async function describe($: Shell, message: string): Promise<{ success: bo
 
 export async function abandon($: Shell): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj abandon @`
+    await $`jj abandon @ >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -132,11 +132,11 @@ export async function abandon($: Shell): Promise<{ success: boolean; error?: str
 
 export async function bookmarkMove($: Shell, bookmark: string = 'main'): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj bookmark move ${bookmark} --to @`
+    await $`jj bookmark move ${bookmark} --to @ >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     try {
-      await $`jj bookmark create ${bookmark} -r @`
+      await $`jj bookmark create ${bookmark} -r @ >/dev/null 2>&1`
       return { success: true }
     } catch {
       return { success: false, error: e.message || String(e) }
@@ -146,12 +146,12 @@ export async function bookmarkMove($: Shell, bookmark: string = 'main'): Promise
 
 export async function gitPush($: Shell, bookmark: string = 'main'): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj git push -b ${bookmark}`
+    await $`jj git push -b ${bookmark} >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     try {
-      const commitId = await $`jj log -r @ --no-graph -T 'commit_id'`.text()
-      await $`git push origin ${commitId.trim()}:${bookmark}`
+      const commitId = await $`jj log -r @ --no-graph -T 'commit_id' 2>/dev/null`.text()
+      await $`git push origin ${commitId.trim()}:${bookmark} >/dev/null 2>&1`
       return { success: true }
     } catch (e2: any) {
       return { success: false, error: e2.message || String(e2) }
@@ -161,7 +161,7 @@ export async function gitPush($: Shell, bookmark: string = 'main'): Promise<{ su
 
 export async function gitInit($: Shell): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj git init`
+    await $`jj git init >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -170,7 +170,7 @@ export async function gitInit($: Shell): Promise<{ success: boolean; error?: str
 
 export async function undo($: Shell): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj undo`
+    await $`jj undo >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -180,7 +180,7 @@ export async function undo($: Shell): Promise<{ success: boolean; error?: string
 export async function newChangeFromCurrent($: Shell, description: string): Promise<{ success: boolean; changeId?: string; parentId?: string; error?: string }> {
   try {
     const parentId = await getCurrentChangeId($)
-    await $`jj new -m ${description}`
+    await $`jj new -m ${description} >/dev/null 2>&1`
     const changeId = await getCurrentChangeId($)
     return { success: true, changeId: changeId || undefined, parentId: parentId || undefined }
   } catch (e: any) {
@@ -190,7 +190,7 @@ export async function newChangeFromCurrent($: Shell, description: string): Promi
 
 export async function newChangeFrom($: Shell, from: string, description: string): Promise<{ success: boolean; changeId?: string; error?: string }> {
   try {
-    await $`jj new ${from} -m ${description}`
+    await $`jj new ${from} -m ${description} >/dev/null 2>&1`
     const changeId = await getCurrentChangeId($)
     return { success: true, changeId: changeId || undefined }
   } catch (e: any) {
@@ -200,7 +200,7 @@ export async function newChangeFrom($: Shell, from: string, description: string)
 
 export async function bookmarkSet($: Shell, name: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj bookmark set ${name} -r @`
+    await $`jj bookmark set ${name} -r @ >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -209,7 +209,7 @@ export async function bookmarkSet($: Shell, name: string): Promise<{ success: bo
 
 export async function getWorkspaceName($: Shell): Promise<string> {
   try {
-    const result = await $`jj workspace list`.text()
+    const result = await $`jj workspace list 2>/dev/null`.text()
     const lines = result.trim().split('\n')
     for (const line of lines) {
       if (line.includes('@')) {
@@ -227,7 +227,7 @@ export async function getWorkspaceName($: Shell): Promise<string> {
 
 export async function getWorkspaceRoot($: Shell): Promise<string> {
   try {
-    const result = await $`jj workspace root`.text()
+    const result = await $`jj workspace root 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -236,7 +236,7 @@ export async function getWorkspaceRoot($: Shell): Promise<string> {
 
 export async function workspaceAdd($: Shell, path: string, name: string, revision: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj workspace add ${path} --name ${name} -r ${revision}`
+    await $`jj workspace add ${path} --name ${name} -r ${revision} >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -245,7 +245,7 @@ export async function workspaceAdd($: Shell, path: string, name: string, revisio
 
 export async function workspaceList($: Shell): Promise<string> {
   try {
-    const result = await $`jj workspace list`.text()
+    const result = await $`jj workspace list 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -254,7 +254,7 @@ export async function workspaceList($: Shell): Promise<string> {
 
 export async function workspaceForget($: Shell, name: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj workspace forget ${name}`
+    await $`jj workspace forget ${name} >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -263,7 +263,7 @@ export async function workspaceForget($: Shell, name: string): Promise<{ success
 
 export async function getBookmarkForChange($: Shell, rev: string = '@'): Promise<string | null> {
   try {
-    const result = await $`jj log -r ${rev} --no-graph -T 'bookmarks'`.text()
+    const result = await $`jj log -r ${rev} --no-graph -T 'bookmarks' 2>/dev/null`.text()
     const bookmarks = result.trim()
     if (bookmarks && bookmarks.length > 0) {
       return bookmarks.split(' ')[0]
@@ -276,7 +276,7 @@ export async function getBookmarkForChange($: Shell, rev: string = '@'): Promise
 
 export async function rebase($: Shell, onto: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj rebase -d ${onto}`
+    await $`jj rebase -d ${onto} >/dev/null 2>&1`
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -286,9 +286,9 @@ export async function rebase($: Shell, onto: string): Promise<{ success: boolean
 export async function squash($: Shell, message?: string): Promise<{ success: boolean; error?: string }> {
   try {
     if (message) {
-      await $`jj squash -m ${message}`
+      await $`jj squash -m ${message} >/dev/null 2>&1`
     } else {
-      await $`jj squash`
+      await $`jj squash >/dev/null 2>&1`
     }
     return { success: true }
   } catch (e: any) {
@@ -298,7 +298,7 @@ export async function squash($: Shell, message?: string): Promise<{ success: boo
 
 export async function getParentDescription($: Shell): Promise<string> {
   try {
-    const result = await $`jj log -r @- --no-graph -T 'description'`.text()
+    const result = await $`jj log -r @- --no-graph -T 'description' 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -307,7 +307,7 @@ export async function getParentDescription($: Shell): Promise<string> {
 
 export async function getRepoRoot($: Shell): Promise<string> {
   try {
-    const result = await $`jj root`.text()
+    const result = await $`jj root 2>/dev/null`.text()
     return result.trim()
   } catch {
     return ''
@@ -319,7 +319,7 @@ export async function ensureWorkspacesIgnored($: Shell, repoRoot: string): Promi
   try {
     let content = ''
     try {
-      content = await $`cat ${gitignorePath}`.text()
+      content = await $`cat ${gitignorePath} 2>/dev/null`.text()
     } catch {
       // File doesn't exist, that's fine
     }
@@ -331,7 +331,7 @@ export async function ensureWorkspacesIgnored($: Shell, repoRoot: string): Promi
     const addition = content.endsWith('\n') || content === '' 
       ? '.workspaces/\n' 
       : '\n.workspaces/\n'
-    await $`echo ${addition} >> ${gitignorePath}`
+    await $`echo ${addition} >> ${gitignorePath} 2>/dev/null`
     return { added: true }
   } catch (e: any) {
     return { added: false, error: e.message || String(e) }
@@ -350,7 +350,7 @@ export interface EmptyCommit {
  */
 export async function getEmptyCommits($: Shell): Promise<EmptyCommit[]> {
   try {
-    const result = await $`jj log -r 'empty() & ~immutable() & ~@' --no-graph -T 'change_id.short() ++ "|" ++ description.first_line() ++ "|" ++ bookmarks ++ "\n"'`.text()
+    const result = await $`jj log -r 'empty() & ~immutable() & ~@' --no-graph -T 'change_id.short() ++ "|" ++ description.first_line() ++ "|" ++ bookmarks ++ "\n"' 2>/dev/null`.text()
     const lines = result.trim().split('\n').filter((l: string) => l.length > 0)
     
     return lines.map((line: string) => {
@@ -375,7 +375,7 @@ export interface StaleWorkspace {
  */
 export async function getStaleWorkspaces($: Shell): Promise<StaleWorkspace[]> {
   try {
-    const listResult = await $`jj workspace list`.text()
+    const listResult = await $`jj workspace list 2>/dev/null`.text()
     const lines = listResult.trim().split('\n')
     const stale: StaleWorkspace[] = []
     
@@ -391,7 +391,7 @@ export async function getStaleWorkspaces($: Shell): Promise<StaleWorkspace[]> {
       const isEmpty = rest.includes('(empty)')
       
       try {
-        const ancestorCheck = await $.nothrow()`jj log -r '${changeId} & ::main' --no-graph -T 'change_id'`
+        const ancestorCheck = await $.nothrow()`jj log -r '${changeId} & ::main' --no-graph -T 'change_id' 2>/dev/null`
         const isMerged = ancestorCheck.exitCode === 0 && ancestorCheck.stdout.toString().trim().length > 0
         
         if (isMerged) {
@@ -421,7 +421,8 @@ export async function abandonCommits($: Shell, changeIds: string[]): Promise<{ s
   }
   
   try {
-    const result = await $`jj abandon ${changeIds}`.text()
+    // Need to capture stdout to parse deleted bookmarks, but suppress stderr
+    const result = await $`jj abandon ${changeIds} 2>/dev/null`.text()
     const bookmarkMatch = result.match(/Deleted bookmarks?:\s*(.+)/i)
     const deletedBookmarks = bookmarkMatch 
       ? bookmarkMatch[1].split(',').map((b: string) => b.trim()).filter((b: string) => b.length > 0)
