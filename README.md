@@ -1,5 +1,8 @@
 # jj-opencode
 
+[![npm version](https://img.shields.io/npm/v/jj-opencode.svg)](https://www.npmjs.com/package/jj-opencode)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 OpenCode plugin that enforces JJ's "define change before implementation" workflow.
 
 ## What It Does
@@ -11,6 +14,20 @@ jj git fetch && jj new main@origin -m "description of work"
 ```
 
 **Before** you can edit any files.
+
+## Quick Start
+
+```bash
+# 1. Install
+npm install -g jj-opencode
+
+# 2. Add to OpenCode config (~/.config/opencode/config.json)
+{ "plugin": ["jj-opencode"] }
+
+# 3. Use /jj before editing
+/jj "Add feature X"
+# Now you can edit files
+```
 
 ## Installation
 
@@ -35,7 +52,7 @@ The postinstall script automatically copies slash commands (`/jj`, `/jj-push`) t
 Clone the repo and symlink:
 
 ```bash
-git clone https://github.com/dps/jj-opencode
+git clone https://github.com/dpshade/jj-opencode
 cd jj-opencode
 bun install
 bun run build
@@ -73,6 +90,15 @@ node bin/setup.js
 | `jj_push(bookmark?, confirm?)` | Preview then push (requires `confirm: true`) |
 | `jj_status()` | Show current change, gate state, and diff summary |
 | `jj_git_init()` | Initialize JJ in non-JJ repo |
+
+## Push Requires Confirmation
+
+**Important**: The `/jj-push` command uses a two-step process:
+
+1. First call shows a preview of changes and asks for permission
+2. Only after you explicitly confirm does it actually push
+
+The AI cannot auto-push without your approval.
 
 ## What's Blocked
 
@@ -133,6 +159,25 @@ Gate LOCKS again (checkpoint complete)
 Next task? Run /jj "description" to start new checkpoint
 ```
 
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Edit blocked unexpectedly | Run `jj_status()` to check gate state |
+| Wrong change description | Run `jj describe -m "new description"` |
+| Want to start over | Run `jj abandon` then `/jj "new description"` |
+| Push fails | Check `jj_status()`, fix issues, try `/jj-push` again |
+| Plugin not loading | Verify `~/.config/opencode/config.json` includes `"plugin": ["jj-opencode"]` |
+
+## JJ Concepts
+
+New to JJ? Here are the key concepts:
+
+- **Change ID**: Stable identifier that survives rebases (e.g., `skvrkxkk`)
+- **Commit ID**: Git-style hash that changes on every edit (e.g., `52ba303b`)
+- **Working copy = commit**: Your edits are always in a commit context
+- **`@`**: Refers to the current working-copy change
+
 ## Why?
 
 JJ (Jujutsu) treats the working copy as an implicit commit. The `jj new -m "description"` command declares your intent BEFORE you start implementing. This plugin enforces that pattern at the tooling level.
@@ -145,8 +190,8 @@ Benefits:
 
 ## Requirements
 
-- [JJ](https://github.com/jj-vcs/jj) installed and in PATH
-- OpenCode with plugin support
+- [JJ (Jujutsu)](https://github.com/jj-vcs/jj) installed and in PATH
+- [OpenCode](https://github.com/opencode-ai/opencode) with plugin support
 
 ## License
 
