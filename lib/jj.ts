@@ -64,18 +64,23 @@ export async function gitFetch($: Shell): Promise<{ success: boolean; error?: st
 }
 
 export async function newChange($: Shell, description: string): Promise<{ success: boolean; changeId?: string; error?: string }> {
+  // Try main@origin first (remote tracking branch)
   try {
     await $`jj new main@origin -m ${description}`
     const changeId = await getCurrentChangeId($)
     return { success: true, changeId: changeId || undefined }
-  } catch (e: any) {
-    // Try without main@origin if it doesn't exist
+  } catch {
+    // Fallback to local main if remote doesn't exist
     try {
-      await $`jj new -m ${description}`
+      await $`jj new main -m ${description}`
       const changeId = await getCurrentChangeId($)
       return { success: true, changeId: changeId || undefined }
-    } catch (e2: any) {
-      return { success: false, error: e2.message || String(e2) }
+    } catch (e: any) {
+      // Don't silently use current change - error out with helpful message
+      return { 
+        success: false, 
+        error: `Could not branch from main@origin or main. Error: ${e.message || String(e)}. Make sure you have a 'main' branch.`
+      }
     }
   }
 }
