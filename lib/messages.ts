@@ -1,3 +1,7 @@
+export function logInfo(message: string): void {
+  console.log(`[INFO] ${message}`)
+}
+
 export const GATE_BLOCK_MESSAGE_PLANNING = `
 **Edit blocked**: No JJ change defined.
 
