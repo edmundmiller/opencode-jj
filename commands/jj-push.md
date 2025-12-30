@@ -16,8 +16,15 @@ Validate and push the current JJ change to the remote repository.
 
 1. Shows a preview of changes to be pushed (files modified, diff summary)
 2. **Requests explicit user permission** to proceed
-3. Moves the `main` bookmark to the current change
+3. Moves the bookmark to the current change (defaults to `main`)
 4. Pushes to the remote
+5. **From workspaces:** Cleans up the workspace and returns to repo root
+
+## Arguments
+
+**Optional:**
+- `bookmark` - Bookmark name to push (defaults to `main`)
+- `confirm` - Set to `true` ONLY after user grants permission
 
 ## User Permission Required
 
@@ -28,6 +35,13 @@ Validate and push the current JJ change to the remote repository.
 3. Only after user confirms, call `jj_push(confirm: true)`
 
 **NEVER auto-confirm**. The user must explicitly approve the push.
+
+## Workspace Cleanup
+
+When pushing from a non-default workspace (`.workspaces/feature-slug/`):
+- After successful push, the workspace is automatically deleted
+- Session returns to the main repo root
+- Gate locks, ready for next task
 
 ## Action
 
@@ -41,4 +55,10 @@ Wait for user to review and approve. Then:
 
 ```
 jj_push(confirm: true)
+```
+
+With custom bookmark:
+
+```
+jj_push(bookmark: "feature-branch")
 ```

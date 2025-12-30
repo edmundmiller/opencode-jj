@@ -5,7 +5,7 @@ argument-hint: "[description] - What you're about to implement"
 
 # /jj Command
 
-Create a new JJ change from `main@origin` and unlock the gate for file editing.
+Create a new JJ change and unlock the gate for file editing.
 
 ## Usage
 
@@ -15,15 +15,43 @@ Create a new JJ change from `main@origin` and unlock the gate for file editing.
 
 ## What This Does
 
+**From default workspace:**
 1. Runs `jj git fetch` to get latest from remote
-2. Runs `jj new main@origin -m "description"` to create a fresh change
-3. Unlocks the plugin gate so you can edit files
+2. Creates `.workspaces/slug/` directory (auto-generated from description)
+3. Creates a JJ workspace there with a bookmark
+4. Moves the session to that workspace
+5. Unlocks the gate
 
-## Argument
+**From feature workspace:**
+1. Runs `jj git fetch` to get latest
+2. Creates a new change in the current workspace
+3. Unlocks the gate
 
-The argument is the description of the work you're about to do. It must be:
-- At least 10 characters
-- More than one word
+## Arguments
+
+**Required:**
+- `description` - What you're about to implement (min 10 chars, 2+ words)
+
+**Optional:**
+- `bookmark` - Named bookmark (auto-generated from description if not provided)
+- `from` - Base revision to branch from (defaults to `main@origin`)
+
+## Examples
+
+Basic usage:
+```
+jj(description: "Add input validation")
+```
+
+With named bookmark:
+```
+jj(description: "Add user settings", bookmark: "user-settings")
+```
+
+From specific revision:
+```
+jj(description: "Fix auth bug", from: "release-v2")
+```
 
 ## Action
 
