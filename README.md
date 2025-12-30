@@ -14,7 +14,13 @@ jj git fetch && jj new main@origin -m "description of work"
 
 ## Installation
 
-Add to your OpenCode config:
+### From npm (recommended)
+
+```bash
+npm install -g jj-opencode
+```
+
+Then add to your OpenCode config (`~/.config/opencode/config.json`):
 
 ```json
 {
@@ -22,7 +28,19 @@ Add to your OpenCode config:
 }
 ```
 
-Or for local development, symlink to `~/.config/opencode/plugin/jj-opencode`.
+### Local Development
+
+Clone the repo and symlink:
+
+```bash
+git clone https://github.com/dpshade/jj-opencode
+cd jj-opencode
+bun install
+bun run build
+
+# Symlink the plugin
+ln -s $(pwd) ~/.config/opencode/plugin/jj-opencode
+```
 
 ## How It Works
 
@@ -36,11 +54,11 @@ Or for local development, symlink to `~/.config/opencode/plugin/jj-opencode`.
 
 | Tool | Purpose |
 |------|---------|
-| `jj_init(description)` | Create new JJ change, unlock editing |
+| `jj_init(description)` | Create new JJ change from `main@origin`, unlock editing |
+| `jj_status()` | Show current change, gate state, and diff summary |
+| `jj_push(bookmark?, confirm?)` | Preview then push (requires `confirm:true`) |
 | `jj_new(description)` | Create sequential change (for multi-step work) |
-| `jj_status()` | Show current change and gate state |
 | `jj_describe(message)` | Update change description |
-| `jj_push(bookmark?, confirm?)` | Preview then push (requires confirm:true) |
 | `jj_abandon()` | Abandon change, reset gate |
 | `jj_git_init()` | Initialize JJ in non-JJ repo |
 
@@ -53,10 +71,19 @@ Until `jj_init` is called:
 - AST grep replace operations
 
 **All git commands are blocked** with JJ alternatives suggested:
-- `git status` → `jj st`
-- `git log` → `jj log`
-- `git commit` → `jj describe -m "..."`
-- `git push` → `jj_push()`
+
+| Git Command | JJ Alternative |
+|-------------|----------------|
+| `git status` | `jj st` |
+| `git log` | `jj log` |
+| `git diff` | `jj diff` |
+| `git add` | (not needed) |
+| `git commit` | `jj describe -m "..."` |
+| `git push` | `jj_push()` |
+| `git checkout` | `jj edit <change>` |
+| `git branch` | `jj bookmark list` |
+| `git stash` | (use `jj new`) |
+| `git pull` | `jj git fetch && jj rebase` |
 
 What's always allowed:
 - Reading files
@@ -69,6 +96,28 @@ What's always allowed:
 ## Description Quality
 
 Descriptions must be at least 10 characters and more than one word. This ensures meaningful change context.
+
+## Workflow Example
+
+```
+Session starts
+    ↓
+Gate is LOCKED
+    ↓
+User: "Add a validation function to utils.ts"
+    ↓
+AI attempts to edit → BLOCKED
+    ↓
+AI calls: jj_init("Add input validation function to utils.ts")
+    ↓
+Gate UNLOCKS, change ID assigned
+    ↓
+AI edits utils.ts freely
+    ↓
+Work complete → jj_push()
+    ↓
+Plugin validates description, pushes to remote
+```
 
 ## Why?
 
