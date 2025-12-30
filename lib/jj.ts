@@ -40,6 +40,15 @@ export async function getDiffSummary($: Shell): Promise<string> {
   }
 }
 
+export async function hasUncommittedChanges($: Shell): Promise<boolean> {
+  try {
+    const result = await $`jj diff --stat`.text()
+    return result.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
 export async function getDiffFiles($: Shell): Promise<string[]> {
   try {
     const result = await $`jj diff --name-only`.text()

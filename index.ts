@@ -66,13 +66,14 @@ const plugin: Plugin = async (ctx) => {
 
         const changeId = await jj.getCurrentChangeId($)
         const description = await jj.getCurrentDescription($)
-        const hasActiveChange = description.length > 0
+        const hasModifications = await jj.hasUncommittedChanges($)
+        const hasActiveWork = description.length > 0 || hasModifications
         const workspaceName = await jj.getWorkspaceName($)
         const workspacePath = await jj.getWorkspaceRoot($)
         const bookmark = await jj.getBookmarkForChange($)
 
         createState(sessionId, {
-          gateUnlocked: hasActiveChange,
+          gateUnlocked: hasActiveWork,
           changeId,
           changeDescription: description,
           isJJRepo: true,
