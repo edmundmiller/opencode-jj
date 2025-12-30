@@ -298,22 +298,23 @@ const plugin: Plugin = async (ctx) => {
             return messages.GATE_NOT_UNLOCKED
           }
 
-          const isNonDefaultWorkspace = state.workspace !== 'default' && state.workspace !== ''
+          // Detect workspace at runtime instead of using frozen session state
+          const actualWorkspace = await jj.getWorkspaceName($)
+          const actualWorkspacePath = await jj.getWorkspaceRoot($)
+          const isNonDefaultWorkspace = actualWorkspace !== 'default' && actualWorkspace !== ''
           const diffFiles = await jj.getDiffFiles($)
           
           if (diffFiles.length === 0) {
             if (isNonDefaultWorkspace) {
               if (!args.confirm) {
-                return messages.WORKSPACE_EMPTY_CHANGES(state.workspace!)
+                return messages.WORKSPACE_EMPTY_CHANGES(actualWorkspace)
               }
-              const repoRoot = state.workspacePath?.replace(/\/.workspaces\/[^/]+$/, '') || ''
-              await jj.workspaceForget($, state.workspace!)
+              const repoRoot = actualWorkspacePath.replace(/\/.workspaces\/[^/]+$/, '')
+              await jj.workspaceForget($, actualWorkspace)
               if (repoRoot) {
                 try { (globalThis as any).process.chdir(repoRoot) } catch {}
               }
-              if (state.workspacePath) {
-                try { await $`rm -rf ${state.workspacePath}` } catch {}
-              }
+              try { await $`rm -rf ${actualWorkspacePath}` } catch {}
               await jj.gitFetch($)
               setState(context.sessionID, {
                 gateUnlocked: false,
@@ -324,7 +325,7 @@ const plugin: Plugin = async (ctx) => {
                 workspace: 'default',
                 workspacePath: repoRoot,
               })
-              return messages.WORKSPACE_CLEANUP_ONLY(state.workspace!)
+              return messages.WORKSPACE_CLEANUP_ONLY(actualWorkspace)
             }
             return messages.PUSH_NO_CHANGES
           }
@@ -335,7 +336,7 @@ const plugin: Plugin = async (ctx) => {
           if (!args.confirm) {
             let confirmMsg = messages.PUSH_CONFIRMATION(description, diffFiles, diffSummary)
             if (isNonDefaultWorkspace) {
-              confirmMsg += `\n\n**Workspace cleanup**: After push, \`${state.workspace}\` will be removed and you'll return to the main project directory.`
+              confirmMsg += `\n\n**Workspace cleanup**: After push, \`${actualWorkspace}\` will be removed and you'll return to the main project directory.`
             }
             return confirmMsg
           }
@@ -357,14 +358,12 @@ const plugin: Plugin = async (ctx) => {
           }
 
           if (isNonDefaultWorkspace) {
-            const repoRoot = state.workspacePath?.replace(/\/.workspaces\/[^/]+$/, '') || ''
-            await jj.workspaceForget($, state.workspace!)
+            const repoRoot = actualWorkspacePath.replace(/\/.workspaces\/[^/]+$/, '')
+            await jj.workspaceForget($, actualWorkspace)
             if (repoRoot) {
               try { (globalThis as any).process.chdir(repoRoot) } catch {}
             }
-            if (state.workspacePath) {
-              try { await $`rm -rf ${state.workspacePath}` } catch {}
-            }
+            try { await $`rm -rf ${actualWorkspacePath}` } catch {}
             await jj.gitFetch($)
             setState(context.sessionID, {
               gateUnlocked: false,
@@ -375,7 +374,7 @@ const plugin: Plugin = async (ctx) => {
               workspace: 'default',
               workspacePath: repoRoot,
             })
-            return warning + messages.PUSH_SUCCESS_WITH_CLEANUP(bookmark, state.workspace!)
+            return warning + messages.PUSH_SUCCESS_WITH_CLEANUP(bookmark, actualWorkspace)
           }
 
           setState(context.sessionID, {
