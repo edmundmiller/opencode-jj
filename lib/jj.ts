@@ -1,17 +1,17 @@
 type Shell = any
 
 function shell($: Shell, cwd?: string): Shell {
-  return cwd ? $({ cwd }) : $
+  return cwd ? $.cwd(cwd) : $
 }
 
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-export async function isJJRepo($: Shell): Promise<boolean> {
+export async function isJJRepo($: Shell, cwd?: string): Promise<boolean> {
   try {
-    const result = await $.nothrow()`jj root 2>/dev/null`
-    return result.exitCode === 0
+    await shell($, cwd)`jj root 2>/dev/null`.text()
+    return true
   } catch {
     return false
   }
@@ -73,7 +73,7 @@ export async function getStatus($: Shell, cwd?: string): Promise<string> {
 
 export async function gitFetch($: Shell, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj git fetch >/dev/null 2>&1`
+    await shell($, cwd)`jj git fetch 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -83,11 +83,11 @@ export async function gitFetch($: Shell, cwd?: string): Promise<{ success: boole
 export async function newFromMain($: Shell, cwd?: string): Promise<{ success: boolean; error?: string }> {
   const s = shell($, cwd)
   try {
-    await s`jj new main@origin >/dev/null 2>&1`
+    await s`jj new main@origin 2>/dev/null`.text()
     return { success: true }
   } catch {
     try {
-      await s`jj new main >/dev/null 2>&1`
+      await s`jj new main 2>/dev/null`.text()
       return { success: true }
     } catch (e: any) {
       return { success: false, error: e.message || String(e) }
@@ -98,12 +98,12 @@ export async function newFromMain($: Shell, cwd?: string): Promise<{ success: bo
 export async function newChange($: Shell, description: string, cwd?: string): Promise<{ success: boolean; changeId?: string; error?: string }> {
   const s = shell($, cwd)
   try {
-    await s`jj new main@origin -m ${description} >/dev/null 2>&1`
+    await s`jj new main@origin -m ${description} 2>/dev/null`.text()
     const changeId = await getCurrentChangeId($, cwd)
     return { success: true, changeId: changeId || undefined }
   } catch {
     try {
-      await s`jj new main -m ${description} >/dev/null 2>&1`
+      await s`jj new main -m ${description} 2>/dev/null`.text()
       const changeId = await getCurrentChangeId($, cwd)
       return { success: true, changeId: changeId || undefined }
     } catch (e: any) {
@@ -117,7 +117,7 @@ export async function newChange($: Shell, description: string, cwd?: string): Pr
 
 export async function describe($: Shell, message: string, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj describe -m ${message} >/dev/null 2>&1`
+    await shell($, cwd)`jj describe -m ${message} 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -126,7 +126,7 @@ export async function describe($: Shell, message: string, cwd?: string): Promise
 
 export async function abandon($: Shell, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj abandon @ >/dev/null 2>&1`
+    await shell($, cwd)`jj abandon @ 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -135,11 +135,11 @@ export async function abandon($: Shell, cwd?: string): Promise<{ success: boolea
 
 export async function bookmarkMove($: Shell, bookmark: string = 'main', cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj bookmark move ${bookmark} --to @ >/dev/null 2>&1`
+    await shell($, cwd)`jj bookmark move ${bookmark} --to @ 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     try {
-      await shell($, cwd)`jj bookmark create ${bookmark} -r @ >/dev/null 2>&1`
+      await shell($, cwd)`jj bookmark create ${bookmark} -r @ 2>/dev/null`.text()
       return { success: true }
     } catch {
       return { success: false, error: e.message || String(e) }
@@ -150,12 +150,12 @@ export async function bookmarkMove($: Shell, bookmark: string = 'main', cwd?: st
 export async function gitPush($: Shell, bookmark: string = 'main', cwd?: string): Promise<{ success: boolean; error?: string }> {
   const s = shell($, cwd)
   try {
-    await s`jj git push -b ${bookmark} >/dev/null 2>&1`
+    await s`jj git push -b ${bookmark} 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     try {
       const commitId = await s`jj log -r @ --no-graph -T 'commit_id' 2>/dev/null`.text()
-      await s`git push origin ${commitId.trim()}:${bookmark} >/dev/null 2>&1`
+      await s`git push origin ${commitId.trim()}:${bookmark} 2>/dev/null`.text()
       return { success: true }
     } catch (e2: any) {
       return { success: false, error: e2.message || String(e2) }
@@ -163,9 +163,9 @@ export async function gitPush($: Shell, bookmark: string = 'main', cwd?: string)
   }
 }
 
-export async function gitInit($: Shell): Promise<{ success: boolean; error?: string }> {
+export async function gitInit($: Shell, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj git init >/dev/null 2>&1`
+    await shell($, cwd)`jj git init 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -174,7 +174,7 @@ export async function gitInit($: Shell): Promise<{ success: boolean; error?: str
 
 export async function undo($: Shell, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj undo >/dev/null 2>&1`
+    await shell($, cwd)`jj undo 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -184,7 +184,7 @@ export async function undo($: Shell, cwd?: string): Promise<{ success: boolean; 
 export async function newChangeFromCurrent($: Shell, description: string, cwd?: string): Promise<{ success: boolean; changeId?: string; parentId?: string; error?: string }> {
   try {
     const parentId = await getCurrentChangeId($, cwd)
-    await shell($, cwd)`jj new -m ${description} >/dev/null 2>&1`
+    await shell($, cwd)`jj new -m ${description} 2>/dev/null`.text()
     const changeId = await getCurrentChangeId($, cwd)
     return { success: true, changeId: changeId || undefined, parentId: parentId || undefined }
   } catch (e: any) {
@@ -194,7 +194,7 @@ export async function newChangeFromCurrent($: Shell, description: string, cwd?: 
 
 export async function newChangeFrom($: Shell, from: string, description: string, cwd?: string): Promise<{ success: boolean; changeId?: string; error?: string }> {
   try {
-    await shell($, cwd)`jj new ${from} -m ${description} >/dev/null 2>&1`
+    await shell($, cwd)`jj new ${from} -m ${description} 2>/dev/null`.text()
     const changeId = await getCurrentChangeId($, cwd)
     return { success: true, changeId: changeId || undefined }
   } catch (e: any) {
@@ -204,7 +204,7 @@ export async function newChangeFrom($: Shell, from: string, description: string,
 
 export async function bookmarkSet($: Shell, name: string, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj bookmark set ${name} -r @ >/dev/null 2>&1`
+    await shell($, cwd)`jj bookmark set ${name} -r @ 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -238,9 +238,9 @@ export async function getWorkspaceRoot($: Shell, cwd?: string): Promise<string> 
   }
 }
 
-export async function workspaceAdd($: Shell, path: string, name: string, revision: string): Promise<{ success: boolean; error?: string }> {
+export async function workspaceAdd($: Shell, path: string, name: string, revision: string, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await $`jj workspace add ${path} --name ${name} -r ${revision} >/dev/null 2>&1`
+    await shell($, cwd)`jj workspace add ${path} --name ${name} -r ${revision} 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -258,7 +258,7 @@ export async function workspaceList($: Shell, cwd?: string): Promise<string> {
 
 export async function workspaceForget($: Shell, name: string, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj workspace forget ${name} >/dev/null 2>&1`
+    await shell($, cwd)`jj workspace forget ${name} 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -280,7 +280,7 @@ export async function getBookmarkForChange($: Shell, rev: string = '@', cwd?: st
 
 export async function rebase($: Shell, onto: string, cwd?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await shell($, cwd)`jj rebase -d ${onto} >/dev/null 2>&1`
+    await shell($, cwd)`jj rebase -d ${onto} 2>/dev/null`.text()
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message || String(e) }
@@ -291,9 +291,9 @@ export async function squash($: Shell, message?: string, cwd?: string): Promise<
   const s = shell($, cwd)
   try {
     if (message) {
-      await s`jj squash -m ${message} >/dev/null 2>&1`
+      await s`jj squash -m ${message} 2>/dev/null`.text()
     } else {
-      await s`jj squash >/dev/null 2>&1`
+      await s`jj squash 2>/dev/null`.text()
     }
     return { success: true }
   } catch (e: any) {
@@ -335,9 +335,10 @@ export async function ensureWorkspacesIgnored($: Shell, repoRoot: string, cwd?: 
     }
     
     const addition = content.endsWith('\n') || content === '' 
-      ? '.workspaces/\n' 
-      : '\n.workspaces/\n'
-    await s`echo ${addition} >> ${gitignorePath} 2>/dev/null`
+      ? '.workspaces/' 
+      : '\n.workspaces/'
+    // Use tee -a for safe append
+    await s`echo ${addition} | tee -a ${gitignorePath} 2>/dev/null`.text()
     return { added: true }
   } catch (e: any) {
     return { added: false, error: e.message || String(e) }
@@ -398,8 +399,8 @@ export async function getStaleWorkspaces($: Shell, cwd?: string): Promise<StaleW
       const isEmpty = rest.includes('(empty)')
       
       try {
-        const ancestorCheck = await s.nothrow()`jj log -r '${changeId} & ::main' --no-graph -T 'change_id' 2>/dev/null`
-        const isMerged = ancestorCheck.exitCode === 0 && ancestorCheck.stdout.toString().trim().length > 0
+        const output = await s`jj log -r '${changeId} & ::main' --no-graph -T 'change_id' 2>/dev/null`.text()
+        const isMerged = output.trim().length > 0
         
         if (isMerged) {
           stale.push({ name, changeId, reason: 'already merged to main' })
