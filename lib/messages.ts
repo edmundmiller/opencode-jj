@@ -289,3 +289,13 @@ export const CLEANUP_SUCCESS = (abandoned: number, workspacesRemoved: number, de
   
   return lines.join('\n')
 }
+
+export const JJ_COMMAND_WARNING = (jjSubcommand: string, pluginAlternative: string): string =>
+  `**Note**: Consider using \`${pluginAlternative}\` instead of \`jj ${jjSubcommand}\` — ` +
+  `the plugin tool handles workspace creation and gate state automatically.\n\n` +
+  `Command executed anyway.`
+
+export const BASH_MODIFY_WARNING = (command: string): string =>
+  `**Note**: Modifying files without a JJ change defined.\n\n` +
+  `Consider calling \`jj("description")\` first to track your work.\n\n` +
+  `Command executed anyway.`

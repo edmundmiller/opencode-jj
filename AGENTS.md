@@ -93,8 +93,16 @@ This ensures meaningful change descriptions that provide context.
 - `write`, `edit` - File creation/modification
 - `lsp_rename`, `lsp_code_action_resolve` - LSP modifications
 - `ast_grep_replace` - AST-based replacements
-- `bash` commands that modify files (sed -i, rm, mv, cp, redirects, etc.)
 - `todowrite` - State modifications
+
+## What Shows Warnings (But Allowed)
+
+When the gate is locked, these commands show a warning but execute anyway:
+
+- `jj new`, `jj describe` - Suggests using plugin tools instead
+- Bash commands that modify files (sed -i, rm, mv, cp, mkdir, etc.) - Suggests calling `jj("description")` first
+
+This provides guidance without blocking legitimate operations.
 
 ## Git Commands Are Blocked (Always)
 
@@ -122,7 +130,7 @@ This enforces JJ-native workflow and prevents mixing git/jj commands.
 - `ast_grep_search` - AST searches (not replace)
 - `webfetch`, `context7_*`, `websearch_*` - External lookups
 - `task`, `background_task`, `call_omo_agent` - Agent orchestration
-- `bash` read-only commands (ls, cat, jj log, etc.)
+- `bash` commands - All allowed (warnings shown for modifying commands when gate locked)
 - All `jj_*` tools from this plugin
 
 ## Workflow Example

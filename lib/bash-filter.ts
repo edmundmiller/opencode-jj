@@ -1,121 +1,3 @@
-const BASH_MODIFY_PATTERNS: RegExp[] = [
-  /\bsed\s+-i/,
-  /\bperl\s+-[ip]/,
-  /(?:^|[;&|)\s])>(?!>)/, // Redirect with command boundary (fixes false positives)
-  />>/,
-  /\btee\b/,
-  /\bmv\s/,
-  /\bcp\s/,
-  /\bmkdir\b/,
-  /\btouch\b/,
-  /\bchmod\b/,
-  /\bchown\b/,
-  /\bln\s/,
-  /\bunlink\b/,
-  /\btruncate\b/,
-  /\bdd\b/,
-  /\binstall\b/,
-  /\bjj\s+(new|describe)\b/,
-  /\bnpm\s+(install|uninstall|update|init|link|publish)\b/,
-  /\byarn\s+(add|remove|install|link)\b/,
-  /\bpnpm\s+(add|remove|install|link)\b/,
-  /\bbun\s+(add|remove|install|link|create)\b/,
-  /\bpip\s+(install|uninstall)\b/,
-  /\bcargo\s+(add|remove|install|build)\b/,
-  /\bmake\b/,
-  /\bninja\b/,
-  /\bcmake\b/,
-  /\bgcc\b/,
-  /\bclang\b/,
-  /\brustc\b/,
-  /\btsc\b/,
-  /\btar\s+[^t]/,
-  /\bunzip\b/,
-  /\bgunzip\b/,
-];
-
-const BASH_READONLY_PATTERNS: RegExp[] = [
-  // JJ read-only commands
-  /\bjj\s+(log|st|status|diff|show|op\s+log|file\s+show|git\s+fetch|evolog)\b/,
-  // JJ metadata commands (don't modify working copy files)
-  /\bjj\s+(abandon|undo|squash|bookmark|workspace)\b/,
-  /\bcat\b(?!.*[>])/,
-  /\bhead\b/,
-  /\btail\b/,
-  /\bless\b/,
-  /\bmore\b/,
-  /\bbat\b/,
-  /\bgrep\b/,
-  /\brg\b/,
-  /\bag\b/,
-  /\bfind\b(?!.*-exec)/,
-  /\bfd\b/,
-  /\blocate\b/,
-  /\bwhich\b/,
-  /\bwhereis\b/,
-  /\btype\b/,
-  /\bls\b/,
-  /\bexa\b/,
-  /\blsd\b/,
-  /\btree\b/,
-  /\bpwd\b/,
-  /\bwc\b/,
-  /\bdu\b/,
-  /\bdf\b/,
-  /\bstat\b/,
-  /\bfile\b/,
-  /\benv\b/,
-  /\bprintenv\b/,
-  /\becho\s+\$/,
-  /\buname\b/,
-  /\bhostname\b/,
-  /\bdate\b/,
-  /\buptime\b/,
-  /\bwho\b/,
-  /\bps\b/,
-  /\btop\b/,
-  /\bhtop\b/,
-  /\bnpm\s+(list|ls|info|view|outdated|search)\b/,
-  /\byarn\s+(list|info|why)\b/,
-  /\bpip\s+(list|show|freeze)\b/,
-  /\bcargo\s+(tree|search|info)\b/,
-];
-
-export interface BashAnalysis {
-  isModifying: boolean;
-  isReadOnly: boolean;
-  matchedPattern?: string;
-}
-
-export function analyzeBashCommand(command: string): BashAnalysis {
-  // Check MODIFY patterns FIRST (security-critical: prevents bypass via piped commands)
-  for (const pattern of BASH_MODIFY_PATTERNS) {
-    if (pattern.test(command)) {
-      return {
-        isModifying: true,
-        isReadOnly: false,
-        matchedPattern: pattern.source,
-      };
-    }
-  }
-
-  for (const pattern of BASH_READONLY_PATTERNS) {
-    if (pattern.test(command)) {
-      return {
-        isModifying: false,
-        isReadOnly: true,
-        matchedPattern: pattern.source,
-      };
-    }
-  }
-
-  return { isModifying: false, isReadOnly: false };
-}
-
-export function isBashReadOnly(command: string): boolean {
-  return !analyzeBashCommand(command).isModifying;
-}
-
 const GIT_TO_JJ: Record<string, string> = {
   status: "jj st",
   log: "jj log",
@@ -176,4 +58,57 @@ export function checkForGitCommand(command: string): GitCommandCheck {
     gitSubcommand: subcommand,
     jjAlternative: alternative,
   };
+}
+
+// JJ commands that have plugin equivalents - warn but don't block
+const JJ_PLUGIN_EQUIVALENT: Record<string, string> = {
+  new: 'jj("description") - handles workspace creation and gate state',
+  describe: 'jj_describe("message") - keeps plugin state in sync',
+};
+
+const JJ_COMMAND_PATTERN = /\bjj\s+(new|describe)\b/i;
+
+export interface JJCommandCheck {
+  hasPluginEquivalent: boolean;
+  jjSubcommand?: string;
+  pluginAlternative?: string;
+}
+
+export function checkForJJCommand(command: string): JJCommandCheck {
+  const match = command.match(JJ_COMMAND_PATTERN);
+  if (!match) {
+    return { hasPluginEquivalent: false };
+  }
+
+  const subcommand = match[1].toLowerCase();
+  const alternative = JJ_PLUGIN_EQUIVALENT[subcommand];
+
+  return {
+    hasPluginEquivalent: true,
+    jjSubcommand: subcommand,
+    pluginAlternative: alternative,
+  };
+}
+
+// Bash commands that modify files - warn (not block) when gate is locked
+const BASH_MODIFY_PATTERNS: RegExp[] = [
+  /\bsed\s+-i/,
+  /\bperl\s+-[ip]/,
+  /(?:^|[;&|)\s])>(?!>)/,
+  />>/,
+  /\btee\b/,
+  /\brm\s/,
+  /\bmv\s/,
+  /\bcp\s/,
+  /\bmkdir\b/,
+  /\btouch\b/,
+  /\bchmod\b/,
+  /\bchown\b/,
+  /\bln\s/,
+  /\bunlink\b/,
+  /\btruncate\b/,
+];
+
+export function isModifyingBashCommand(command: string): boolean {
+  return BASH_MODIFY_PATTERNS.some(pattern => pattern.test(command));
 }

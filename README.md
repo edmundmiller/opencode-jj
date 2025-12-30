@@ -149,11 +149,10 @@ The AI cannot auto-push without your approval.
 
 Until a change is defined via `/jj` or `jj()`:
 - File write/edit operations
-- Bash commands that modify files (sed -i, rm, mv, etc.)
 - LSP rename/code action operations
 - AST grep replace operations
 
-**All git commands are blocked** with JJ alternatives suggested:
+**All git commands are blocked** (always) with JJ alternatives suggested:
 
 | Git Command | JJ Alternative |
 |-------------|----------------|
@@ -168,11 +167,16 @@ Until a change is defined via `/jj` or `jj()`:
 | `git stash` | (use `jj new`) |
 | `git pull` | `jj git fetch && jj rebase` |
 
+**Bash commands show warnings** (but execute anyway) when gate is locked:
+- `jj new`, `jj describe` - Suggests using plugin tools instead
+- File-modifying commands (sed -i, rm, mv, etc.) - Suggests calling `jj("description")` first
+
 What's always allowed:
 - Reading files
 - Searching (grep, glob)
 - LSP queries (hover, definitions)
 - Web lookups
+- Bash commands (with warnings when modifying files and gate locked)
 - JJ commands (`jj log`, `jj st`, etc.)
 - Spawning subagents (they inherit gate state)
 
