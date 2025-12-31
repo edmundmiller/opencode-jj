@@ -97,14 +97,26 @@ Single-word descriptions don't provide enough context. Please describe what chan
 Example: "Fix pagination bug in user list"
 `
 
-export const PUSH_CONFIRMATION = (description: string, files: string[], diffSummary: string): string => `
-**Push requires your approval**
+export const PUSH_CONFIRMATION = (description: string, files: string[], diffSummary: string): string => {
+  const firstLine = description.split('\n')[0].trim()
+  const hasMoreLines = description.includes('\n')
+  
+  let msg = `**Push requires your approval**
 
 | Field | Value |
 |-------|-------|
-| Description | ${description} |
+| Description | ${firstLine}${hasMoreLines ? ' ...' : ''} |
 | Files changed | ${files.length} |
+`
 
+  if (hasMoreLines) {
+    msg += `
+### Full Description
+> ${description.split('\n').map(l => l.trim()).join('\n> ')}
+`
+  }
+
+  msg += `
 ### Files
 ${files.map(f => '- ' + f).join('\n')}
 
@@ -117,6 +129,8 @@ ${diffSummary}
 
 To update the description first: \`jj describe -m "new description"\`
 `
+  return msg
+}
 
 export const GIT_COMMAND_BLOCKED = (gitSubcommand: string, jjAlternative: string): string =>
   `**Git command blocked** - use JJ instead\n\n` +
