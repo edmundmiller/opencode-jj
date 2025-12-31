@@ -257,8 +257,8 @@ const plugin: Plugin = async (ctx) => {
               gitignoreNote = '**Note**: Added `.workspaces/` to `.gitignore`\n\n'
             }
 
-            const defaultBranch = await jj.getDefaultBranch($, actualRepoRoot)
-            const addResult = await jj.workspaceAdd($, workspacePath, workspaceName, `${defaultBranch}@origin`, actualRepoRoot)
+            const defaultRevset = await jj.getDefaultBranchRevset($, actualRepoRoot)
+            const addResult = await jj.workspaceAdd($, workspacePath, workspaceName, defaultRevset, actualRepoRoot)
             if (!addResult.success) {
               return `Error creating workspace: ${addResult.error}`
             }
@@ -625,8 +625,8 @@ const plugin: Plugin = async (ctx) => {
             await $`mkdir -p ${workspacesDir}`
           } catch {}
 
-          const defaultBranch = await jj.getDefaultBranch($, actualRepoRoot)
-          const addResult = await jj.workspaceAdd($, workspacePath, workspaceName, `${defaultBranch}@origin`, actualRepoRoot)
+          const defaultRevset = await jj.getDefaultBranchRevset($, actualRepoRoot)
+          const addResult = await jj.workspaceAdd($, workspacePath, workspaceName, defaultRevset, actualRepoRoot)
           if (!addResult.success) {
             return `Error creating workspace: ${addResult.error}`
           }

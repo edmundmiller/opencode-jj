@@ -15,17 +15,35 @@ export async function isJJRepo($: Shell, cwd?: string): Promise<boolean> {
 
 export async function getDefaultBranch($: Shell, cwd?: string): Promise<string> {
   const s = shell($, cwd)
+  const candidates = ['main', 'master']
+  
+  for (const branch of candidates) {
+    try {
+      await s`jj log -r ${branch}@origin --no-graph -T '' 2>/dev/null`.text()
+      return branch
+    } catch {}
+    try {
+      await s`jj log -r ${branch} --no-graph -T '' 2>/dev/null`.text()
+      return branch
+    } catch {}
+  }
+  
+  return 'main'
+}
+
+export async function getDefaultBranchRevset($: Shell, cwd?: string): Promise<string> {
+  const s = shell($, cwd)
   const candidates = [
-    { revset: 'main@origin', branch: 'main' },
-    { revset: 'master@origin', branch: 'master' },
-    { revset: 'main', branch: 'main' },
-    { revset: 'master', branch: 'master' },
+    'main@origin',
+    'master@origin', 
+    'main',
+    'master',
   ]
   
-  for (const { revset, branch } of candidates) {
+  for (const revset of candidates) {
     try {
       await s`jj log -r ${revset} --no-graph -T '' 2>/dev/null`.text()
-      return branch
+      return revset
     } catch {}
   }
   
