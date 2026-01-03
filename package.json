@@ -5,18 +5,13 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
-  "bin": {
-    "jj-opencode-setup": "./bin/setup.js"
-  },
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build"
   },
   "files": [
-    "dist",
-    "bin",
-    "commands"
+    "dist"
   ],
   "keywords": [
     "opencode",
