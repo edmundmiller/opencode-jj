@@ -10,8 +10,8 @@
 
 **Git worktrees are dead. Long live JJ workspaces.**
 
-[![npm version](https://img.shields.io/npm/v/jj-opencode.svg?color=cb3837&labelColor=black&style=flat-square)](https://www.npmjs.com/package/jj-opencode)
-[![GitHub Stars](https://img.shields.io/github/stars/dpshade/jj-opencode?color=ffcb47&labelColor=black&style=flat-square)](https://github.com/dpshade/jj-opencode/stargazers)
+[![npm version](https://img.shields.io/npm/v/opencode-jj.svg?color=cb3837&labelColor=black&style=flat-square)](https://www.npmjs.com/package/opencode-jj)
+[![GitHub Stars](https://img.shields.io/github/stars/edmundmiller/opencode-jj?color=ffcb47&labelColor=black&style=flat-square)](https://github.com/edmundmiller/opencode-jj/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-white?labelColor=black&style=flat-square)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -46,23 +46,23 @@ Just: **describe → implement → push → done**.
 
 ### For LLM Agents
 
-If you're an AI agent helping set up jj-opencode:
+If you're an AI agent helping set up opencode-jj:
 
 ```bash
-npm install -g jj-opencode
+npm install -g opencode-jj
 ```
 
 Add to `~/.config/opencode/config.json`:
 ```json
-{ "plugin": ["jj-opencode"] }
+{ "plugin": ["opencode-jj"] }
 ```
 
 Done. The plugin handles everything else. When the user asks you to edit files, you'll be prompted to describe the change first. Workspaces are created and cleaned up automatically.
 
 ### For Humans Who Don't Like Reading
 
-1. Install: `npm install -g jj-opencode`
-2. Add `"jj-opencode"` to your OpenCode plugins
+1. Install: `npm install -g opencode-jj`
+2. Add `"opencode-jj"` to your OpenCode plugins
 3. Start coding — the plugin guides you through the rest
 
 **That's it.** The AI handles workspace creation, cleanup, and all the JJ ceremony. You just say what you want to build.
@@ -147,11 +147,11 @@ AI:  ✓ Pushed, cleaned up
 
 ```bash
 # Install
-npm install -g jj-opencode
+npm install -g opencode-jj
 
 # Add to OpenCode config (~/.config/opencode/config.json)
 {
-  "plugin": ["jj-opencode"]
+  "plugin": ["opencode-jj"]
 }
 
 # That's it. Start working.

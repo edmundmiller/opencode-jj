@@ -12,7 +12,7 @@ const OPENCODE_COMMAND_DIR = join(homedir(), '.config', 'opencode', 'command')
 const COMMANDS_SOURCE_DIR = join(__dirname, '..', 'commands')
 
 function setup() {
-  console.log('jj-opencode: Installing slash commands...\n')
+  console.log('opencode-jj: Installing slash commands...\n')
 
   if (!existsSync(OPENCODE_COMMAND_DIR)) {
     mkdirSync(OPENCODE_COMMAND_DIR, { recursive: true })

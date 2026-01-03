@@ -1,12 +1,12 @@
 {
-  "name": "jj-opencode",
+  "name": "opencode-jj",
   "version": "0.2.0",
   "description": "OpenCode plugin for JJ VCS - enforces 'define change before implementation' workflow",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "bin": {
-    "jj-opencode-setup": "./bin/setup.js"
+    "opencode-jj-setup": "./bin/setup.js"
   },
   "scripts": {
     "build": "tsc",
@@ -26,11 +26,11 @@
     "vcs",
     "version-control"
   ],
-  "author": "DPS",
+  "author": "Edmund Miller",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dpshade/jj-opencode"
+    "url": "https://github.com/edmundmiller/opencode-jj"
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=0.1.0"
