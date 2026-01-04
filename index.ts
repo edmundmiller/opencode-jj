@@ -7,6 +7,9 @@ const MODIFYING_TOOLS = new Set([
   'ast_grep_replace'
 ])
 
+// Session state: track if gate was opened (edits were allowed) this session
+const sessionState = new Map<string, { gateOpened: boolean }>()
+
 async function getCurrentDescription($: any): Promise<string> {
   try {
     return (await $`jj log -r @ --no-graph -T description`.text()).trim()
@@ -97,7 +100,12 @@ BEFORE calling: Show preview with 'jj log -r @' and 'jj diff --stat', ask user t
     if (!await isJJRepo($)) return
     
     const description = await getCurrentDescription($)
-    if (description.length > 0) return
+    if (description.length > 0) {
+      const state = sessionState.get(sessionID) || { gateOpened: false }
+      state.gateOpened = true
+      sessionState.set(sessionID, state)
+      return
+    }
 
     const subagent = await isSubagent(client, sessionID)
     
@@ -115,6 +123,41 @@ BEFORE calling: Show preview with 'jj log -r @' and 'jj diff --stat', ask user t
       `    jj describe -m "what you're about to do"\n\n` +
       `When done, run \`jj new\` to commit and start fresh.`
     )
+  },
+
+  event: async ({ event }) => {
+    const props = event.properties as Record<string, unknown> | undefined
+
+    if (event.type === "session.deleted") {
+      const sessionID = props?.sessionID as string | undefined
+      if (sessionID) sessionState.delete(sessionID)
+      return
+    }
+
+    if (event.type === "session.idle") {
+      const sessionID = props?.sessionID as string | undefined
+      if (!sessionID) return
+
+      if (await isSubagent(client, sessionID)) return
+
+      const state = sessionState.get(sessionID)
+      if (!state?.gateOpened) return
+
+      if (!await isJJRepo($)) return
+
+      const stats = (await $`jj diff --stat`.text()).trim()
+      if (!stats || stats.includes("0 files changed")) return
+
+      const description = await getCurrentDescription($)
+      if (!description) return
+
+      try {
+        await $`jj new`.quiet()
+        sessionState.set(sessionID, { gateOpened: false })
+      } catch {
+        // Silent fail - user will see uncommitted work next session
+      }
+    }
   },
 })
 
