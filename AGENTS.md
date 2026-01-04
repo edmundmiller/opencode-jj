@@ -47,18 +47,22 @@ Until `jj describe -m "description"` is run:
 
 ### jj_push
 
-Safely pushes the current change to a bookmark (defaults to `main`).
+Safely pushes changes to a bookmark (defaults to `main`).
 
 ```
 jj_push                      ← push to main
 jj_push bookmark="feature"   ← push to feature branch (user must specify)
 ```
 
-The tool:
-1. Shows a preview with change ID, description, and files
-2. Requires user confirmation before pushing
-3. Runs `jj new` → `jj bookmark set` → `jj git push`
-4. Leaves working copy clean and ready for new work
+The tool auto-detects what to push:
+- If `@` has changes → pushes `@`
+- If `@` is empty (common after session idle) → pushes `@-`
+- If both empty → searches for unpushed commits, requires confirmation
+
+Flow:
+1. Shows preview with commits and files to push
+2. Requires user confirmation
+3. Moves bookmark → pushes → verifies clean working copy
 
 **Important:** Only specify a bookmark if the user explicitly requested it.
 
@@ -126,10 +130,6 @@ RIGHT: Point main at C, push once ← B and C both pushed
 
 ## Before Push
 
-Show the user:
-```bash
-jj log -r @
-jj diff --stat
-```
+Just call `jj_push` — it auto-detects the right commit and shows a preview.
 
-Wait for explicit "yes" before pushing.
+Wait for explicit "yes" before calling with `confirmed: true`.

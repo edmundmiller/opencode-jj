@@ -56,21 +56,24 @@ Add to `~/.config/opencode/config.json`:
 
 ### jj_push
 
-Safely pushes current change to a bookmark.
+Safely pushes changes to a bookmark.
 
 ```
 jj_push                      ← push to main (default)
 jj_push bookmark="feature"   ← push to specific branch
 ```
 
-- Shows preview before pushing
-- Requires user confirmation
-- Runs `jj new` + bookmark move + push
-- Leaves working copy clean
+Auto-detects what to push:
+- If `@` has changes → pushes `@`
+- If `@` is empty (common after session idle) → pushes `@-`
+- If both empty → searches for unpushed commits, requires confirmation
+
+Flow:
+1. Shows preview with commits and files
+2. Requires user confirmation
+3. Moves bookmark → pushes → verifies clean working copy
 
 Only specify `bookmark` if user explicitly requested it.
-
-**Multi-commit push:** The tool shows all commits that will be pushed. JJ pushes bookmarks, not individual commits — moving the bookmark to the tip pushes all ancestors automatically.
 
 ## JJ ≠ Git
 

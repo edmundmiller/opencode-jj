@@ -36,25 +36,72 @@ async function isSubagent(client: any, sessionID: string): Promise<boolean> {
   }
 }
 
-async function getChangeInfo($: any): Promise<{ id: string; description: string; stats: string }> {
+async function getChangeInfo($: any, rev: string = '@'): Promise<{ id: string; description: string; stats: string }> {
   try {
-    const id = (await $`jj log -r @ --no-graph -T 'change_id.shortest(8)'`.text()).trim()
-    const description = (await $`jj log -r @ --no-graph -T description`.text()).trim()
-    const stats = (await $`jj diff --stat`.text()).trim()
+    const id = (await $`jj log -r ${rev} --no-graph -T 'change_id.shortest(8)'`.text()).trim()
+    const description = (await $`jj log -r ${rev} --no-graph -T description`.text()).trim()
+    const stats = (await $`jj diff -r ${rev} --stat`.text()).trim()
     return { id, description, stats }
   } catch {
     return { id: '', description: '', stats: '' }
   }
 }
 
-async function getCommitStack($: any, bookmark: string): Promise<string[]> {
+async function getCommitStack($: any, bookmark: string, targetRev: string): Promise<string[]> {
   try {
-    // Get all commits between remote bookmark and current working copy parent
-    const output = (await $`jj log -r '${bookmark}@origin..@-' --no-graph -T 'change_id.shortest(8) ++ " " ++ description.first_line() ++ "\n"'`.text()).trim()
+    const output = (await $`jj log -r '${bookmark}@origin..${targetRev}' --no-graph -T 'change_id.shortest(8) ++ " " ++ description.first_line() ++ "\n"'`.text()).trim()
     return output ? output.split('\n').filter(Boolean) : []
   } catch {
     return []
   }
+}
+
+interface PushTarget {
+  revision: string
+  info: { id: string; description: string; stats: string }
+  stack: string[]
+  needsConfirmation: boolean
+}
+
+async function findPushTarget($: any, bookmark: string): Promise<PushTarget | null> {
+  const atInfo = await getChangeInfo($, '@')
+  if (atInfo.description && atInfo.stats) {
+    const stack = await getCommitStack($, bookmark, '@')
+    return { revision: '@', info: atInfo, stack, needsConfirmation: false }
+  }
+
+  const parentInfo = await getChangeInfo($, '@-')
+  if (parentInfo.description && parentInfo.stats) {
+    const stack = await getCommitStack($, bookmark, '@-')
+    return { revision: '@-', info: parentInfo, stack, needsConfirmation: false }
+  }
+
+  try {
+    const unpushedOutput = (await $`jj log -r '${bookmark}@origin..@' --no-graph -T 'change_id.shortest(8) ++ "|" ++ description.first_line() ++ "\n"'`.text()).trim()
+    const unpushedLines = unpushedOutput ? unpushedOutput.split('\n').filter(Boolean) : []
+    
+    const nonEmptyCommits = []
+    for (const line of unpushedLines) {
+      const [changeId] = line.split('|')
+      const info = await getChangeInfo($, changeId)
+      if (info.stats) {
+        nonEmptyCommits.push({ changeId, info })
+      }
+    }
+
+    if (nonEmptyCommits.length > 0) {
+      const tipCommit = nonEmptyCommits[0]
+      const stack = await getCommitStack($, bookmark, tipCommit.changeId)
+      return {
+        revision: tipCommit.changeId,
+        info: tipCommit.info,
+        stack,
+        needsConfirmation: true
+      }
+    }
+  } catch {}
+
+  return null
 }
 
 async function isImmutable($: any, revset: string = '@'): Promise<boolean> {
@@ -98,9 +145,8 @@ const plugin: Plugin = async ({ $, client }) => ({
   tool: {
     jj_push: tool({
       description: `Push current JJ change to a bookmark (default: main). 
-IMPORTANT: Only specify 'bookmark' if the user explicitly requested a specific branch/bookmark. 
-If no bookmark specified, pushes to 'main'.
-BEFORE calling: Show preview with 'jj log -r @' and 'jj diff --stat', ask user to confirm.`,
+Auto-detects push target: checks @ first, then @- if @ is empty (common after session idle).
+Only specify 'bookmark' if user explicitly requested a specific branch.`,
       args: {
         bookmark: tool.schema.string().optional().describe(
           "Target bookmark/branch. ONLY set if user explicitly specified. Defaults to 'main'."
@@ -115,57 +161,64 @@ BEFORE calling: Show preview with 'jj log -r @' and 'jj diff --stat', ask user t
         }
 
         const bookmark = args.bookmark || 'main'
-        const info = await getChangeInfo($)
+        const target = await findPushTarget($, bookmark)
 
-        if (!info.description) {
-          return "Cannot push: no description. Run: jj describe -m \"description\""
-        }
-        if (!info.stats) {
-          return "Cannot push: no file changes."
+        if (!target) {
+          return `Nothing to push. No unpushed changes between \`${bookmark}@origin\` and \`@\`.`
         }
 
-        const commitStack = await getCommitStack($, bookmark)
-        const totalCommits = commitStack.length + 1
+        if (await isImmutable($, target.revision)) {
+          return `Target commit is already immutable (pushed). Start new work: jj describe -m "description"`
+        }
+
+        const { revision, info, stack, needsConfirmation } = target
+        const totalCommits = stack.length
 
         if (!args.confirmed) {
           let preview = `## Push Preview\n\n`
+          preview += `**Target:** \`${revision}\` ${revision !== '@' ? '(@ is empty)' : ''}\n\n`
           preview += `**${totalCommits} commit(s) will be pushed to \`${bookmark}\`:**\n\n`
+          preview += `\`\`\`\n`
+          for (const commit of stack) {
+            preview += `${commit}\n`
+          }
+          preview += `\`\`\`\n\n`
+          preview += `**Files in tip commit:**\n\`\`\`\n${info.stats}\n\`\`\`\n\n`
           
-          if (commitStack.length > 0) {
-            preview += `\`\`\`\n`
-            for (const commit of commitStack) {
-              preview += `${commit}\n`
-            }
-            preview += `${info.id} ${info.description.split('\n')[0]}\n`
-            preview += `\`\`\`\n\n`
-          } else {
-            preview += `\`\`\`\n${info.id} ${info.description.split('\n')[0]}\n\`\`\`\n\n`
+          if (needsConfirmation) {
+            preview += `⚠️  **Note:** Had to search beyond \`@-\` to find changes. Please verify this is correct.\n\n`
           }
           
-          preview += `**Files changed:**\n\`\`\`\n${info.stats}\n\`\`\`\n\n`
-          preview += `After pushing, these commits become **immutable** (can't rewrite them).\n\n`
+          preview += `After pushing, these commits become **immutable**.\n\n`
           preview += `Call with \`confirmed: true\` to push.`
           
           return preview
         }
 
-        if (await isImmutable($, '@')) {
-          return `Current commit is already immutable (pushed). Start new work: jj describe -m "description"`
-        }
-
         try {
-          await $`jj new`.text()
-          await $`jj bookmark set ${bookmark} -r @-`.text()
+          if (revision === '@') {
+            await $`jj new`.text()
+            await $`jj bookmark set ${bookmark} -r @-`.text()
+          } else {
+            await $`jj bookmark set ${bookmark} -r ${revision}`.text()
+          }
+          
           await $`jj git push -b ${bookmark}`.text()
+
+          const postPushDesc = (await $`jj log -r @ --no-graph -T description`.text()).trim()
+          const isClean = !postPushDesc
           
           let result = `Pushed ${totalCommits} commit(s) to \`${bookmark}\`:\n\n`
-          if (commitStack.length > 0) {
-            for (const commit of commitStack) {
-              result += `• ${commit}\n`
-            }
+          for (const commit of stack) {
+            result += `• ${commit}\n`
           }
-          result += `• ${info.id} ${info.description.split('\n')[0]}\n\n`
-          result += `These commits are now **immutable**. Working copy is clean.`
+          result += `\nThese commits are now **immutable**.`
+          
+          if (isClean) {
+            result += ` Working copy is clean and ready.`
+          } else {
+            result += `\n\n⚠️  Working copy has description set. Run \`jj new\` if starting fresh work.`
+          }
           
           return result
         } catch (error: any) {
