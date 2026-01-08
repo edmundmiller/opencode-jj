@@ -210,3 +210,124 @@ RIGHT: Point main at C, push once ← B and C both pushed
 Just call `jj_push` — it auto-detects the right commit and shows a preview.
 
 Wait for explicit "yes" before calling with `confirmed: true`.
+
+## Common Mistakes to Avoid
+
+### 1. File Tracking (CRITICAL)
+
+**WRONG:** Trying to use `jj file track <file>` (doesn't exist)
+**WRONG:** Thinking files need to be "staged" before commit
+
+**RIGHT:** JJ automatically tracks all files in working copy
+- Just use `write`, `edit` tools
+- No staging step needed for jj
+- All changes go into current change (`@`)
+
+**Exception - Nix Flakes:** If you're in a nix flake repo, nix only sees files in git's index. Use the `jj_file_track` tool to add files to git's index after creating/modifying them.
+
+### 2. After External Operations
+
+If user runs `hey rebuild`, `nix develop`, or other external commands:
+
+**DO THIS FIRST:**
+```bash
+jj status          # Check current working copy
+jj log --limit 5   # Check for orphaned commits (↔ symbol)
+```
+
+**Orphaned commits (↔ symbol) mean:**
+- Previous work got disconnected from main
+- External operation triggered jj state changes
+- Use `jj_recover_orphans` tool for automatic recovery
+
+### 3. Multiple Related Changes
+
+**WRONG:**
+- Session 1: Create new file
+- User runs rebuild
+- Session 2: Update config to reference file
+- Result: Changes get separated, file may be lost
+
+**RIGHT:**
+- Single session: Create file AND update config
+- Run `jj_file_track` to add to git index (for nix)
+- User runs rebuild
+- Verify both changes present
+
+### 4. Git Mental Model vs JJ
+
+| Git Concept | JJ Reality |
+|-------------|------------|
+| `git add` (staging) | Not needed - jj tracks automatically |
+| `git commit` | Not needed - changes are always in a commit |
+| `git stash` | Use `jj new` to start fresh work |
+| Working directory | Always in a commit (`@`) |
+
+## Tools Reference
+
+### jj_file_track
+
+Add files to git's index so nix flakes can see them.
+
+```
+jj_file_track                    ← adds all files in working copy
+jj_file_track files=["a.md"]     ← adds specific files
+```
+
+**When to use:**
+- After creating files that nix needs to see
+- Before user runs `hey rebuild`
+- When working in nix flake repos
+
+### jj_recover_orphans
+
+Detect and automatically recover orphaned commits.
+
+```
+jj_recover_orphans               ← finds and restores orphaned changes
+```
+
+**When to use:**
+- After seeing `↔` symbol in `jj log`
+- After user reports "my changes disappeared"
+- After external operations that might have changed jj state
+
+### jj_push
+
+(See above for full documentation)
+
+## Debugging Guide
+
+### "File disappeared after rebuild"
+
+1. Run `jj_recover_orphans` for automatic recovery
+2. Or manually:
+   - `jj log -r 'all()' --limit 10` to see all commits
+   - Look for orphaned commits (↔ symbol)
+   - `jj diff -r <commit-id>` to check if file is there
+   - `jj restore --from <commit-id> <file>` to restore
+
+### "Changes not visible to nix"
+
+1. Run `jj_file_track` to add files to git index
+2. User runs `hey rebuild`
+3. Verify: `ls ~/.config/opencode/...` (or wherever deployed)
+
+### "Working copy is empty but I made changes"
+
+This happens when jj moved to a new commit. Your changes are in a previous commit.
+
+1. `jj log --limit 5` to see recent commits
+2. Find your work (look for your description)
+3. Either:
+   - `jj edit <commit-id>` to go back to that commit
+   - `jj restore --from <commit-id>` to bring changes to current commit
+
+### "Commit is immutable"
+
+Commits become immutable after pushing. You can't modify them.
+
+Options:
+- Continue with new work: `jj describe -m "next task"`
+- Start fresh from main: `jj new main@origin -m "description"`
+- Undo recent operation: `jj undo`

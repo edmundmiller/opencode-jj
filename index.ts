@@ -7,6 +7,46 @@ const MODIFYING_TOOLS = new Set([
   'ast_grep_replace'
 ])
 
+// Educational messages for common jj mistakes
+const JJ_CONCEPTS = {
+  noStagingArea: `**JJ Concept: No Staging Area**
+
+JJ automatically tracks all files in the working copy.
+There is no "git add" or staging step for jj itself.
+
+Just write files - they're automatically included in the current change.
+
+However, if you're in a nix flake repo, use \`jj_file_track\` to add files
+to git's index so nix can see them.`,
+
+  orphanedCommits: (count: number, examples: string[]) => `**Orphaned Commits Detected (${count})**
+
+Some commits are disconnected from main (marked with ↔ in jj log).
+This happens when external operations change jj state.
+
+Found orphans:
+${examples.map(e => `• ${e}`).join('\n')}
+
+Attempting automatic recovery...`,
+
+  recoverySuccess: (restored: string[]) => `**Recovery Complete**
+
+Restored changes from orphaned commits:
+${restored.map(r => `• ${r}`).join('\n')}
+
+The orphaned commits still exist. To clean up:
+• \`jj abandon <commit-id>\` to remove them
+• Or leave them (they don't affect anything)`,
+
+  recoveryFailed: `**Recovery Failed**
+
+Could not automatically restore orphaned changes.
+Manual recovery options:
+• \`jj log -r 'all()' --limit 10\` to see all commits
+• \`jj rebase -s <commit-id> -d main\` to rebase orphan onto main
+• \`jj restore --from <commit-id> <file>\` to restore specific files`,
+}
+
 // Session state: track if gate was opened (edits were allowed) this session
 const sessionState = new Map<string, { gateOpened: boolean }>()
 
@@ -113,6 +153,89 @@ async function isImmutable($: any, revset: string = '@'): Promise<boolean> {
   }
 }
 
+interface OrphanedCommit {
+  id: string
+  description: string
+  files: string[]
+}
+
+async function findOrphanedCommits($: any): Promise<OrphanedCommit[]> {
+  try {
+    // Find commits that are not ancestors of main and not the working copy
+    const orphansOutput = (await $`jj log -r 'all() ~ ::main@origin ~ @' --no-graph -T 'change_id.shortest(8) ++ "|" ++ description.first_line() ++ "\n"'`.text()).trim()
+    if (!orphansOutput) return []
+    
+    const orphans: OrphanedCommit[] = []
+    for (const line of orphansOutput.split('\n').filter(Boolean)) {
+      const [id, description] = line.split('|')
+      if (!id) continue
+      
+      // Get files changed in this commit
+      const files = await getFilesChangedInCommit($, id.trim())
+      if (files.length > 0) {
+        orphans.push({ id: id.trim(), description: description?.trim() || '(no description)', files })
+      }
+    }
+    return orphans
+  } catch {
+    return []
+  }
+}
+
+async function recoverOrphanedChanges($: any, orphans: OrphanedCommit[]): Promise<{ success: boolean; restored: string[] }> {
+  const restored: string[] = []
+  
+  for (const orphan of orphans) {
+    try {
+      // Restore each file from the orphaned commit
+      for (const file of orphan.files) {
+        await $`jj restore --from ${orphan.id} ${file}`.quiet()
+        restored.push(`${file} (from ${orphan.id}: ${orphan.description})`)
+      }
+    } catch {
+      // Continue with other orphans if one fails
+    }
+  }
+  
+  return { success: restored.length > 0, restored }
+}
+
+async function getFilesInWorkingCopy($: any): Promise<string[]> {
+  try {
+    const output = (await $`jj diff --summary`.text()).trim()
+    if (!output) return []
+    return output.split('\n').filter(Boolean).map((line: string) => line.replace(/^[AMD] /, ''))
+  } catch {
+    return []
+  }
+}
+
+async function addFilesToGitIndex($: any, files: string[]): Promise<{ added: string[]; failed: string[] }> {
+  const added: string[] = []
+  const failed: string[] = []
+  
+  for (const file of files) {
+    try {
+      await $`git add ${file}`.quiet()
+      added.push(file)
+    } catch {
+      failed.push(file)
+    }
+  }
+  
+  return { added, failed }
+}
+
+async function getFilesChangedInCommit($: any, rev: string): Promise<string[]> {
+  try {
+    const output = (await $`jj diff -r ${rev} --summary`.text()).trim()
+    if (!output) return []
+    return output.split('\n').filter(Boolean).map((line: string) => line.replace(/^[AMD] /, ''))
+  } catch {
+    return []
+  }
+}
+
 const JJ_ERROR_PATTERNS: Array<{ pattern: RegExp; message: (match: RegExpMatchArray) => string }> = [
   {
     pattern: /Commit (\S+) is immutable/i,
@@ -143,6 +266,89 @@ const plugin: Plugin = async ({ $, client }) => ({
   name: 'jj-opencode',
 
   tool: {
+    jj_file_track: tool({
+      description: `Add files to git's index so nix flakes can see them.
+
+JJ automatically tracks all files, but nix flakes only see files in git's index.
+Use this after creating/modifying files that nix needs to see.
+
+Without arguments: adds all files in current jj working copy to git index.
+With files argument: adds only specified files.`,
+      args: {
+        files: tool.schema.array(tool.schema.string()).optional().describe(
+          "Specific files to add. If omitted, adds all files in jj working copy."
+        ),
+      },
+      async execute(args) {
+        if (!await isJJRepo($)) {
+          return "Not a JJ repository."
+        }
+
+        const filesToAdd = args.files || await getFilesInWorkingCopy($)
+        
+        if (filesToAdd.length === 0) {
+          return "No files to track. Working copy is clean."
+        }
+
+        const { added, failed } = await addFilesToGitIndex($, filesToAdd)
+        
+        let result = ""
+        if (added.length > 0) {
+          result += `**Added to git index (${added.length} files):**\n`
+          result += added.map(f => `• ${f}`).join('\n')
+          result += `\n\nThese files are now visible to nix flakes.`
+        }
+        
+        if (failed.length > 0) {
+          result += `\n\n**Failed to add (${failed.length} files):**\n`
+          result += failed.map(f => `• ${f}`).join('\n')
+        }
+        
+        if (added.length === 0 && failed.length === 0) {
+          result = "No files needed to be added."
+        }
+        
+        return result
+      },
+    }),
+
+    jj_recover_orphans: tool({
+      description: `Detect and recover orphaned commits.
+
+Orphaned commits are disconnected from main (shown with ↔ in jj log).
+This happens when external operations (like nix-darwin rebuild) change jj state.
+
+This tool:
+1. Finds orphaned commits with actual file changes
+2. Restores those changes to the current working copy
+3. Reports what was recovered`,
+      args: {},
+      async execute() {
+        if (!await isJJRepo($)) {
+          return "Not a JJ repository."
+        }
+
+        const orphans = await findOrphanedCommits($)
+        
+        if (orphans.length === 0) {
+          return "No orphaned commits found. Repository is clean."
+        }
+
+        const examples = orphans.slice(0, 5).map(o => `${o.id}: ${o.description} (${o.files.length} files)`)
+        let result = JJ_CONCEPTS.orphanedCommits(orphans.length, examples) + "\n\n"
+
+        const { success, restored } = await recoverOrphanedChanges($, orphans)
+        
+        if (success) {
+          result += JJ_CONCEPTS.recoverySuccess(restored)
+        } else {
+          result += JJ_CONCEPTS.recoveryFailed
+        }
+        
+        return result
+      },
+    }),
+
     jj_push: tool({
       description: `Push current JJ change to a bookmark (default: main). 
 Auto-detects push target: checks @ first, then @- if @ is empty (common after session idle).
@@ -258,7 +464,9 @@ Only specify 'bookmark' if user explicitly requested a specific branch.`,
     throw new Error(
       `Describe your intent before editing:\n\n` +
       `    jj describe -m "what you're about to do"\n\n` +
-      `When done, run \`jj new\` to commit and start fresh.`
+      `When done, run \`jj new\` to commit and start fresh.\n\n` +
+      `---\n` +
+      `${JJ_CONCEPTS.noStagingArea}`
     )
   },
 
